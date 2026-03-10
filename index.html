@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>カロリースキャン</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f3ef;
+  --surface: #ffffff;
+  --card: #fafaf8;
+  --ink: #1a1a18;
+  --ink2: #5a5a55;
+  --ink3: #9a9a92;
+  --accent: #e8531a;
+  --accent-light: #fde8df;
+  --green: #2d8a4e;
+  --green-light: #d4f0de;
+  --blue: #1a5fb4;
+  --blue-light: #dce8f8;
+  --yellow: #e8a41a;
+  --yellow-light: #fdf0d4;
+  --border: #e8e6e0;
+  --shadow: 0 2px 12px rgba(0,0,0,0.07);
+  --morning: #e8a41a;
+  --lunch: #2d8a4e;
+  --dinner: #1a5fb4;
+  --snack: #c44dc4;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { background:var(--bg); color:var(--ink); font-family:'Noto Sans JP',sans-serif; min-height:100vh; max-width:430px; margin:0 auto; }
+
+/* ページ */
+.page { display:none; flex-direction:column; min-height:100vh; }
+.page.active { display:flex; }
+
+/* トップバー */
+.top-bar { padding:16px 20px 12px; display:flex; align-items:center; justify-content:space-between; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; }
+.top-bar-title { font-size:17px; font-weight:700; }
+.member-avatar { width:36px; height:36px; border-radius:50%; background:var(--accent); color:white; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+
+/* ボトムナビ */
+.bottom-nav { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:430px; background:var(--surface); border-top:1px solid var(--border); display:flex; z-index:200; padding-bottom:env(safe-area-inset-bottom); }
+.nav-btn { flex:1; padding:10px 0 8px; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none; cursor:pointer; color:var(--ink3); transition:color .15s; }
+.nav-btn.active { color:var(--accent); }
+.nav-btn .nav-icon { font-size:22px; }
+.nav-btn .nav-label { font-size:10px; font-weight:500; }
+
+/* スクロールエリア */
+.scroll-area { flex:1; overflow-y:auto; padding:16px 16px 100px; display:flex; flex-direction:column; gap:14px; }
+
+/* カード */
+.card { background:var(--surface); border-radius:16px; border:1px solid var(--border); overflow:hidden; box-shadow:var(--shadow); }
+
+/* 今日のサマリー */
+.today-summary { background:var(--ink); border-radius:16px; padding:18px 18px 14px; color:white; }
+.today-label { font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,.5); margin-bottom:6px; font-family:'DM Mono',monospace; }
+.today-total-row { display:flex; align-items:flex-end; gap:6px; margin-bottom:12px; }
+.today-cal-num { font-family:'DM Mono',monospace; font-size:52px; font-weight:500; line-height:1; }
+.today-cal-unit { font-size:16px; color:rgba(255,255,255,.6); margin-bottom:7px; }
+.today-target { font-size:12px; color:rgba(255,255,255,.5); margin-left:auto; margin-bottom:7px; font-family:'DM Mono',monospace; }
+.progress-track { height:6px; background:rgba(255,255,255,.15); border-radius:3px; overflow:hidden; }
+.progress-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,#e8531a,#ff8c5a); transition:width .6s cubic-bezier(.34,1.56,.64,1); }
+.meal-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.meal-chip { padding:4px 10px; border-radius:100px; font-size:11px; font-weight:500; }
+.meal-chip.morning { background:rgba(232,164,26,.2); color:#b87e00; }
+.meal-chip.lunch   { background:rgba(45,138,78,.15); color:#1d6b35; }
+.meal-chip.dinner  { background:rgba(26,95,180,.15); color:#1040a0; }
+.meal-chip.snack   { background:rgba(196,77,196,.15); color:#8b1e8b; }
+
+/* 撮影ボタン */
+.capture-area { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.capture-btn { border:none; border-radius:14px; padding:18px 12px; cursor:pointer; transition:transform .15s,opacity .15s; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.capture-btn:active { transform:scale(.96); opacity:.85; }
+.capture-btn.primary { background:var(--accent); color:white; }
+.capture-btn.secondary { background:var(--surface); color:var(--ink); border:1.5px solid var(--border); }
+.capture-btn .c-icon { font-size:30px; }
+.capture-btn .c-label { font-size:13px; font-weight:700; }
+.capture-btn .c-sub { font-size:11px; opacity:.7; }
+input[type="file"] { display:none; }
+
+/* セッションカード */
+.session-header { padding:14px 16px 10px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); }
+.session-title { font-size:14px; font-weight:700; }
+.session-total { font-family:'DM Mono',monospace; font-size:18px; font-weight:500; color:var(--accent); }
+.session-item { padding:10px 16px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border); }
+.session-item:last-child { border-bottom:none; }
+.item-thumb { width:44px; height:44px; border-radius:8px; object-fit:cover; flex-shrink:0; }
+.item-thumb-ph { width:44px; height:44px; border-radius:8px; background:var(--accent-light); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.item-info { flex:1; min-width:0; }
+.item-name { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.item-macros { font-size:11px; color:var(--ink3); font-family:'DM Mono',monospace; margin-top:2px; }
+.item-cal { font-family:'DM Mono',monospace; font-size:16px; font-weight:500; }
+.item-cal-unit { font-size:10px; color:var(--ink3); }
+.item-del { width:24px; height:24px; border-radius:50%; background:none; border:none; cursor:pointer; color:var(--ink3); font-size:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s,color .15s; }
+.item-del:hover { background:#fee; color:#c00; }
+.session-actions { padding:12px 14px; display:flex; gap:8px; border-top:1px solid var(--border); }
+.add-more-btn { flex:1; padding:11px; border:1.5px dashed var(--border); border-radius:10px; background:none; color:var(--ink2); font-size:13px; font-weight:500; cursor:pointer; transition:all .15s; font-family:'Noto Sans JP',sans-serif; }
+.add-more-btn:hover { border-color:var(--accent); color:var(--accent); }
+.save-meal-btn { flex:1.5; padding:11px; background:var(--accent); color:white; border:none; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; font-family:'Noto Sans JP',sans-serif; }
+
+/* 分析オーバーレイ */
+.analyze-overlay { display:none; position:fixed; inset:0; z-index:500; background:rgba(26,26,24,.92); flex-direction:column; align-items:center; justify-content:center; gap:20px; }
+.analyze-overlay.show { display:flex; }
+.analyze-img-preview { width:220px; height:220px; object-fit:cover; border-radius:20px; border:3px solid rgba(255,255,255,.1); }
+.analyze-status { color:white; font-size:15px; font-weight:500; display:flex; align-items:center; gap:10px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.spinner { width:20px; height:20px; border-radius:50%; border:2px solid rgba(255,255,255,.3); border-top-color:white; animation:spin .8s linear infinite; display:inline-block; }
+
+/* モーダル */
+.modal-overlay { display:none; position:fixed; inset:0; z-index:600; background:rgba(0,0,0,.5); align-items:flex-end; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal-sheet { background:var(--surface); border-radius:24px 24px 0 0; padding:24px 20px 40px; width:100%; max-width:430px; animation:slideUp .3s ease; max-height:90vh; overflow-y:auto; }
+@keyframes slideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }
+.modal-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 20px; }
+.modal-title { font-size:17px; font-weight:700; margin-bottom:16px; }
+
+/* 食事種別グリッド */
+.meal-type-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; }
+.meal-type-btn { padding:14px; border-radius:12px; border:2px solid var(--border); background:none; cursor:pointer; font-family:'Noto Sans JP',sans-serif; display:flex; flex-direction:column; align-items:center; gap:6px; transition:all .15s; }
+.meal-type-btn .mt-icon { font-size:26px; }
+.meal-type-btn .mt-label { font-size:13px; font-weight:700; color:var(--ink); }
+.meal-type-btn .mt-kcal { font-size:11px; color:var(--ink3); font-family:'DM Mono',monospace; }
+.meal-type-btn.morning.selected { border-color:var(--morning); background:var(--yellow-light); }
+.meal-type-btn.lunch.selected   { border-color:var(--lunch);   background:var(--green-light); }
+.meal-type-btn.dinner.selected  { border-color:var(--dinner);  background:var(--blue-light); }
+.meal-type-btn.snack.selected   { border-color:var(--snack);   background:rgba(196,77,196,.1); }
+.modal-confirm-btn { width:100%; padding:15px; border:none; border-radius:13px; background:var(--accent); color:white; font-size:16px; font-weight:700; font-family:'Noto Sans JP',sans-serif; cursor:pointer; }
+.modal-confirm-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* グラフ */
+.chart-member-bar { display:flex; gap:8px; overflow-x:auto; padding:14px 16px; background:var(--surface); border-bottom:1px solid var(--border); scrollbar-width:none; }
+.chart-member-bar::-webkit-scrollbar { display:none; }
+.chart-member-chip { padding:6px 16px; border-radius:100px; border:1.5px solid var(--border); background:none; font-size:13px; font-weight:600; white-space:nowrap; cursor:pointer; font-family:'Noto Sans JP',sans-serif; color:var(--ink2); transition:all .15s; flex-shrink:0; }
+.chart-member-chip.active { background:var(--accent); border-color:var(--accent); color:white; }
+.chart-scroll { flex:1; overflow-y:auto; padding:16px 16px 100px; display:flex; flex-direction:column; gap:14px; }
+.graph-card { background:var(--surface); border-radius:16px; border:1px solid var(--border); padding:18px; box-shadow:var(--shadow); }
+.graph-title { font-size:14px; font-weight:700; margin-bottom:4px; }
+.graph-subtitle { font-size:12px; color:var(--ink3); margin-bottom:16px; }
+
+/* 棒グラフ */
+.bar-chart-wrap { position:relative; margin-bottom:8px; }
+.chart-ref-lines { position:absolute; left:0; right:0; top:0; pointer-events:none; z-index:1; }
+.ref-line { position:absolute; left:0; right:0; display:flex; align-items:center; }
+.ref-line-dash { flex:1; border-top:1.5px dashed; }
+.ref-line-label { font-size:10px; font-family:'DM Mono',monospace; padding-left:6px; white-space:nowrap; font-weight:500; }
+.ref-line.meal-ref .ref-line-dash { border-color:rgba(232,83,26,.5); }
+.ref-line.meal-ref .ref-line-label { color:var(--accent); }
+.ref-line.day-ref .ref-line-dash { border-color:rgba(26,26,24,.2); }
+.ref-line.day-ref .ref-line-label { color:var(--ink2); }
+.bars-row { display:flex; align-items:flex-end; gap:5px; height:200px; position:relative; z-index:2; }
+.bar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; }
+.bar-stack { width:100%; display:flex; flex-direction:column-reverse; border-radius:5px 5px 0 0; overflow:hidden; }
+.bar-seg { width:100%; flex-shrink:0; }
+.bar-seg.morning { background:var(--morning); }
+.bar-seg.lunch   { background:var(--lunch); }
+.bar-seg.dinner  { background:var(--dinner); }
+.bar-seg.snack   { background:var(--snack); }
+.bar-date { font-size:10px; color:var(--ink3); font-family:'DM Mono',monospace; }
+.bar-today .bar-date { color:var(--accent); font-weight:700; }
+.bar-kcal { font-size:9px; color:var(--ink2); font-family:'DM Mono',monospace; line-height:1; }
+.legend-row { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
+.legend-item { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--ink2); }
+.legend-dot { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+.legend-dot.morning { background:var(--morning); }
+.legend-dot.lunch   { background:var(--lunch); }
+.legend-dot.dinner  { background:var(--dinner); }
+.legend-dot.snack   { background:var(--snack); }
+.legend-dot.meal-ref { background:var(--accent); border-radius:1px; height:2px; margin-bottom:4px; }
+.legend-dot.day-ref  { background:var(--ink3); border-radius:1px; height:2px; margin-bottom:4px; }
+
+/* 日別詳細 */
+.day-detail-header { padding:14px 16px 10px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.day-detail-date { font-size:14px; font-weight:700; }
+.day-detail-total { font-family:'DM Mono',monospace; font-size:16px; color:var(--accent); }
+.day-detail-row { padding:11px 16px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); }
+.day-detail-row:last-child { border-bottom:none; }
+.detail-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.detail-dot.morning { background:var(--morning); }
+.detail-dot.lunch   { background:var(--lunch); }
+.detail-dot.dinner  { background:var(--dinner); }
+.detail-dot.snack   { background:var(--snack); }
+.detail-dish { flex:1; font-size:13px; }
+.detail-cal { font-family:'DM Mono',monospace; font-size:13px; color:var(--ink2); }
+
+/* プロフィール */
+.profile-scroll { flex:1; overflow-y:auto; padding:20px 16px 100px; display:flex; flex-direction:column; gap:14px; }
+.member-list { display:flex; flex-direction:column; gap:10px; }
+.member-card { background:var(--surface); border-radius:14px; border:1px solid var(--border); padding:16px; display:flex; align-items:center; gap:14px; cursor:pointer; transition:box-shadow .15s; box-shadow:var(--shadow); }
+.member-card:hover { box-shadow:0 4px 20px rgba(0,0,0,.1); }
+.member-card.current { border-color:var(--accent); }
+.member-card-avatar { width:48px; height:48px; border-radius:50%; color:white; font-weight:700; font-size:18px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.member-card-name { font-size:16px; font-weight:700; }
+.member-card-stats { font-size:12px; color:var(--ink3); margin-top:2px; font-family:'DM Mono',monospace; }
+.member-card-target { font-size:12px; color:var(--accent); margin-top:2px; font-family:'DM Mono',monospace; }
+.add-member-card { background:none; border:2px dashed var(--border); border-radius:14px; padding:18px; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; color:var(--ink3); font-size:14px; font-weight:500; transition:all .15s; width:100%; font-family:'Noto Sans JP',sans-serif; }
+.add-member-card:hover { border-color:var(--accent); color:var(--accent); }
+
+/* フォーム */
+.form-sec { margin-bottom:18px; }
+.form-label { font-size:12px; color:var(--ink3); font-weight:500; margin-bottom:6px; letter-spacing:.5px; }
+.form-input { width:100%; padding:12px 14px; background:var(--bg); border:1.5px solid var(--border); border-radius:10px; font-size:15px; font-family:'Noto Sans JP',sans-serif; color:var(--ink); outline:none; transition:border-color .2s; }
+.form-input:focus { border-color:var(--accent); }
+.gender-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.gender-btn { padding:11px; border-radius:10px; border:1.5px solid var(--border); background:none; cursor:pointer; font-family:'Noto Sans JP',sans-serif; font-size:14px; font-weight:500; color:var(--ink2); transition:all .15s; }
+.gender-btn.selected { border-color:var(--accent); background:var(--accent-light); color:var(--accent); }
+.input-unit-wrap { position:relative; }
+.input-unit-wrap .form-input { padding-right:42px; }
+.input-unit { position:absolute; right:14px; top:50%; transform:translateY(-50%); font-size:13px; color:var(--ink3); pointer-events:none; }
+.activity-list { display:flex; flex-direction:column; gap:6px; }
+.activity-btn { padding:12px 14px; border-radius:10px; border:1.5px solid var(--border); background:none; cursor:pointer; font-family:'Noto Sans JP',sans-serif; display:flex; justify-content:space-between; align-items:center; transition:all .15s; width:100%; }
+.activity-btn .act-name { font-size:14px; font-weight:500; color:var(--ink); }
+.activity-btn .act-desc { font-size:11px; color:var(--ink3); }
+.activity-btn.selected { border-color:var(--accent); background:var(--accent-light); }
+.activity-btn.selected .act-name { color:var(--accent); }
+.bmr-result { background:var(--accent); border-radius:12px; padding:16px; text-align:center; color:white; margin-top:4px; }
+.bmr-label { font-size:12px; opacity:.8; margin-bottom:4px; }
+.bmr-num { font-family:'DM Mono',monospace; font-size:36px; font-weight:500; }
+.bmr-unit { font-size:14px; opacity:.8; }
+.bmr-meal { font-size:12px; opacity:.7; margin-top:4px; }
+.save-profile-btn { width:100%; padding:15px; border:none; border-radius:13px; background:var(--accent); color:white; font-size:16px; font-weight:700; font-family:'Noto Sans JP',sans-serif; cursor:pointer; }
+
+/* トースト */
+.toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--ink); color:white; padding:10px 20px; border-radius:100px; font-size:13px; font-weight:500; z-index:1000; opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap; }
+.toast.show { opacity:1; }
+
+/* セットアップバナー */
+.setup-banner { background:#fff8e6; border:1.5px solid #f0c040; border-radius:12px; padding:14px 16px; font-size:13px; line-height:1.7; color:#7a6000; }
+.setup-banner code { background:rgba(0,0,0,.06); padding:1px 5px; border-radius:4px; font-family:'DM Mono',monospace; }
+</style>
+</head>
+<body>
+
+<!-- スキャン画面 -->
+<div class="page active" id="pageScan">
+  <div class="top-bar">
+    <div class="top-bar-title">カロリースキャン</div>
+    <div class="member-avatar" id="avatarBtn" onclick="showPage('pageProfile')">?</div>
+  </div>
+  <div class="scroll-area">
+    <div class="setup-banner" id="setupBanner" style="display:none">
+      ⚙️ <strong>Worker URLを設定してください</strong><br>
+      <code>WORKER_URL</code> をCloudflare WorkerのURLに書き換えると、家族全員で履歴を共有できます。
+    </div>
+
+    <div class="today-summary">
+      <div class="today-label">TODAY</div>
+      <div class="today-total-row">
+        <div class="today-cal-num" id="todayNum">0</div>
+        <div class="today-cal-unit">kcal</div>
+        <div class="today-target" id="todayTarget"></div>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div class="meal-chips" id="todayChips"></div>
+    </div>
+
+    <div class="capture-area">
+      <button class="capture-btn primary" id="cameraBtn">
+        <span class="c-icon">📷</span>
+        <span class="c-label">カメラで撮影</span>
+        <span class="c-sub">写真は保存しない</span>
+      </button>
+      <button class="capture-btn secondary" id="galleryBtn">
+        <span class="c-icon">🖼️</span>
+        <span class="c-label">アルバムから</span>
+        <span class="c-sub">既存の写真を選ぶ</span>
+      </button>
+    </div>
+
+    <input type="file" id="cameraInput" accept="image/*" capture="environment">
+    <input type="file" id="galleryInput" accept="image/*">
+
+    <div class="card" id="sessionCard" style="display:none">
+      <div class="session-header">
+        <div class="session-title">🍽️ 今回の食事</div>
+        <div><span class="session-total" id="sessionTotal">0</span><span style="font-size:12px;color:var(--ink3)"> kcal</span></div>
+      </div>
+      <div id="sessionItems"></div>
+      <div class="session-actions">
+        <button class="add-more-btn" id="addMoreBtn">＋ 品目を追加</button>
+        <button class="save-meal-btn" id="saveMealBtn">💾 保存する</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- グラフ画面 -->
+<div class="page" id="pageGraph">
+  <div class="top-bar"><div class="top-bar-title">📊 カロリーグラフ</div></div>
+  <div class="chart-member-bar" id="chartMemberBar"></div>
+  <div class="chart-scroll" id="chartScroll"></div>
+</div>
+
+<!-- プロフィール画面 -->
+<div class="page" id="pageProfile">
+  <div class="top-bar"><div class="top-bar-title">👤 メンバー管理</div></div>
+  <div class="profile-scroll" id="profileScroll"></div>
+</div>
+
+<!-- ボトムナビ -->
+<div class="bottom-nav">
+  <button class="nav-btn active" id="navScan" onclick="showPage('pageScan')">
+    <span class="nav-icon">📷</span><span class="nav-label">スキャン</span>
+  </button>
+  <button class="nav-btn" id="navGraph" onclick="showPage('pageGraph')">
+    <span class="nav-icon">📊</span><span class="nav-label">グラフ</span>
+  </button>
+  <button class="nav-btn" id="navProfile" onclick="showPage('pageProfile')">
+    <span class="nav-icon">👤</span><span class="nav-label">メンバー</span>
+  </button>
+</div>
+
+<!-- 分析オーバーレイ -->
+<div class="analyze-overlay" id="analyzeOverlay">
+  <img class="analyze-img-preview" id="analyzePreview" src="" alt="">
+  <div class="analyze-status"><span class="spinner"></span><span>分析中...</span></div>
+</div>
+
+<!-- 保存モーダル -->
+<div class="modal-overlay" id="saveModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">食事の種類を選んでください</div>
+    <div class="meal-type-grid">
+      <button class="meal-type-btn morning" data-type="morning" onclick="selectMealType('morning')">
+        <span class="mt-icon">🌅</span><span class="mt-label">朝ごはん</span><span class="mt-kcal" id="mt-morning"></span>
+      </button>
+      <button class="meal-type-btn lunch" data-type="lunch" onclick="selectMealType('lunch')">
+        <span class="mt-icon">☀️</span><span class="mt-label">昼ごはん</span><span class="mt-kcal" id="mt-lunch"></span>
+      </button>
+      <button class="meal-type-btn dinner" data-type="dinner" onclick="selectMealType('dinner')">
+        <span class="mt-icon">🌙</span><span class="mt-label">夜ごはん</span><span class="mt-kcal" id="mt-dinner"></span>
+      </button>
+      <button class="meal-type-btn snack" data-type="snack" onclick="selectMealType('snack')">
+        <span class="mt-icon">🍪</span><span class="mt-label">おやつ</span><span class="mt-kcal" id="mt-snack"></span>
+      </button>
+    </div>
+    <button class="modal-confirm-btn" id="modalConfirmBtn" disabled onclick="confirmSave()">保存する</button>
+  </div>
+</div>
+
+<!-- プロフィールモーダル -->
+<div class="modal-overlay" id="profileModal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="profileModalTitle">新しいメンバーを追加</div>
+    <div class="form-sec">
+      <div class="form-label">名前</div>
+      <input class="form-input" id="pName" placeholder="例：太郎" maxlength="10">
+    </div>
+    <div class="form-sec">
+      <div class="form-label">性別</div>
+      <div class="gender-row">
+        <button class="gender-btn" id="gMale" onclick="selectGender('male')">👨 男性</button>
+        <button class="gender-btn" id="gFemale" onclick="selectGender('female')">👩 女性</button>
+      </div>
+    </div>
+    <div class="form-sec">
+      <div class="form-label">年齢</div>
+      <div class="input-unit-wrap">
+        <input class="form-input" id="pAge" type="number" min="1" max="120" placeholder="30" oninput="calcBMR()">
+        <span class="input-unit">歳</span>
+      </div>
+    </div>
+    <div class="form-sec">
+      <div class="form-label">身長</div>
+      <div class="input-unit-wrap">
+        <input class="form-input" id="pHeight" type="number" min="100" max="250" placeholder="170" oninput="calcBMR()">
+        <span class="input-unit">cm</span>
+      </div>
+    </div>
+    <div class="form-sec">
+      <div class="form-label">体重</div>
+      <div class="input-unit-wrap">
+        <input class="form-input" id="pWeight" type="number" min="20" max="300" placeholder="65" oninput="calcBMR()">
+        <span class="input-unit">kg</span>
+      </div>
+    </div>
+    <div class="form-sec">
+      <div class="form-label">活動レベル</div>
+      <div class="activity-list">
+        <button class="activity-btn" data-factor="1.2" onclick="selectActivity(this)"><span class="act-name">座り仕事が多い</span><span class="act-desc">運動ほぼなし</span></button>
+        <button class="activity-btn" data-factor="1.375" onclick="selectActivity(this)"><span class="act-name">軽い運動あり</span><span class="act-desc">週1〜3回</span></button>
+        <button class="activity-btn" data-factor="1.55" onclick="selectActivity(this)"><span class="act-name">定期的に運動</span><span class="act-desc">週3〜5回</span></button>
+        <button class="activity-btn" data-factor="1.725" onclick="selectActivity(this)"><span class="act-name">かなり活動的</span><span class="act-desc">週6〜7回</span></button>
+      </div>
+    </div>
+    <div class="bmr-result" id="bmrResult" style="display:none;margin-bottom:20px">
+      <div class="bmr-label">1日の推奨カロリー（TDEE）</div>
+      <div><span class="bmr-num" id="bmrNum">—</span><span class="bmr-unit"> kcal</span></div>
+      <div class="bmr-meal" id="bmrMeal"></div>
+    </div>
+    <button class="save-profile-btn" onclick="saveProfile()">保存する</button>
+    <button onclick="closeProfileModal()" style="width:100%;padding:14px;margin-top:8px;border:none;background:none;font-size:14px;color:var(--ink3);cursor:pointer;font-family:'Noto Sans JP',sans-serif;">キャンセル</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ================================================================
+// ★ Cloudflare Worker URL（セットアップ後に書き換えてください）
+// ================================================================
+const WORKER_URL = "https://calorie-worker.valisolaris.workers.dev/";
+const isConfigured = WORKER_URL !== "YOUR_WORKER_URL_HERE";
+
+// ── State ──────────────────────────────────────────────────────
+let members = JSON.parse(localStorage.getItem('cal_members') || '[]');
+let currentMemberId = localStorage.getItem('cal_currentMember') || null;
+let sessionItems = [];
+let selectedMealType = null;
+let editingMemberId = null;
+let selectedGender = null;
+let selectedActivityFactor = null;
+let graphMemberId = null;
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function currentMember() {
+  return members.find(m => m.id === currentMemberId) || members[0] || null;
+}
+
+function getHistory(memberId) {
+  return JSON.parse(localStorage.getItem(`cal_hist_${memberId}`) || '[]');
+}
+
+function saveHistoryLocal(memberId, entry) {
+  const h = getHistory(memberId);
+  h.unshift(entry);
+  if (h.length > 300) h.splice(300);
+  localStorage.setItem(`cal_hist_${memberId}`, JSON.stringify(h));
+}
+
+function todayMeals(memberId) {
+  const tk = todayKey();
+  return getHistory(memberId).filter(e => e.date && e.date.startsWith(tk));
+}
+
+const AVATAR_COLORS = ['#e8531a','#2d8a4e','#1a5fb4','#c44dc4','#e8a41a','#888'];
+function avatarColor(id) {
+  const n = (id||'').split('').reduce((s,c)=>s+c.charCodeAt(0),0);
+  return AVATAR_COLORS[n % AVATAR_COLORS.length];
+}
+
+// ── ページ遷移 ────────────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const map = { pageScan:'navScan', pageGraph:'navGraph', pageProfile:'navProfile' };
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  if (map[id]) document.getElementById(map[id]).classList.add('active');
+  if (id === 'pageGraph') renderGraph();
+  if (id === 'pageProfile') renderProfilePage();
+  if (id === 'pageScan') renderScanPage();
+}
+
+// ── スキャン画面 ──────────────────────────────────────────────
+function renderScanPage() {
+  const m = currentMember();
+  const avatar = document.getElementById('avatarBtn');
+  avatar.textContent = m ? m.name[0] : '?';
+  if (m) avatar.style.background = avatarColor(m.id);
+  document.getElementById('setupBanner').style.display = isConfigured ? 'none' : 'block';
+  updateTodaySummary();
+}
+
+function updateTodaySummary() {
+  const m = currentMember();
+  if (!m) { document.getElementById('todayNum').textContent = '0'; return; }
+  const meals = todayMeals(m.id);
+  const total = meals.reduce((s,e) => s+(e.total_calories||0), 0);
+  const target = m.tdee ? Math.round(m.tdee) : null;
+
+  document.getElementById('todayNum').textContent = total.toLocaleString();
+  document.getElementById('todayTarget').textContent = target ? `目標 ${target.toLocaleString()} kcal` : '';
+  const pct = target ? Math.min((total/target)*100, 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  const chips = document.getElementById('todayChips');
+  chips.innerHTML = '';
+  const tmap = { morning:'🌅朝', lunch:'☀️昼', dinner:'🌙夜', snack:'🍪おやつ' };
+  meals.forEach(e => {
+    const chip = document.createElement('div');
+    chip.className = `meal-chip ${e.meal_type||'dinner'}`;
+    chip.textContent = `${tmap[e.meal_type]||'食事'} ${(e.total_calories||0).toLocaleString()}kcal`;
+    chips.appendChild(chip);
+  });
+}
+
+// ── 撮影 ─────────────────────────────────────────────────────
+document.getElementById('cameraBtn').onclick = () => document.getElementById('cameraInput').click();
+document.getElementById('galleryBtn').onclick = () => document.getElementById('galleryInput').click();
+document.getElementById('addMoreBtn').onclick  = () => document.getElementById('galleryInput').click();
+document.getElementById('cameraInput').onchange = e => { if(e.target.files[0]) handleFile(e.target.files[0]); e.target.value=''; };
+document.getElementById('galleryInput').onchange = e => { if(e.target.files[0]) handleFile(e.target.files[0]); e.target.value=''; };
+
+async function handleFile(file) {
+  if (!currentMember()) { showToast('⚠️ 先にメンバーを登録してください'); showPage('pageProfile'); return; }
+  const dataUrl = await new Promise((res,rej) => { const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); });
+  const base64 = dataUrl.split(',')[1];
+
+  document.getElementById('analyzePreview').src = dataUrl;
+  document.getElementById('analyzeOverlay').classList.add('show');
+
+  try {
+    let result;
+    if (isConfigured) {
+      const res = await fetch(`${WORKER_URL}/analyze`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({imageBase64:base64,mediaType:file.type}) });
+      result = await res.json();
+      if (result.error) throw new Error(result.error);
+    } else {
+      result = await analyzeWithAnthropic(base64, file.type);
+    }
+    result._thumb = dataUrl;
+    sessionItems.push(result);
+    renderSessionCard();
+  } catch(err) {
+    showToast('⚠️ 分析に失敗: ' + err.message);
+  } finally {
+    document.getElementById('analyzeOverlay').classList.remove('show');
+  }
+}
+
+async function analyzeWithAnthropic(base64, mediaType) {
+  const prompt = `この食事の写真を分析して、以下のJSON形式のみで回答してください（説明文不要）:\n{"dish_name":"料理名（日本語）","calories":数値,"calorie_min":数値,"calorie_max":数値,"carbs":数値,"protein":数値,"fat":数値,"confidence":"high|mid|low","comment":"コメント2文（日本語）"}\n食べ物がない場合はdish_nameに「食べ物が検出されませんでした」。`;
+  const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:800,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:mediaType,data:base64}},{type:"text",text:prompt}]}]})});
+  const data = await res.json();
+  const text = data.content?.map(b=>b.text||'').join('')||'';
+  return JSON.parse(text.replace(/```json|```/g,'').trim());
+}
+
+// ── セッションカード ──────────────────────────────────────────
+function renderSessionCard() {
+  const card = document.getElementById('sessionCard');
+  if (!sessionItems.length) { card.style.display='none'; return; }
+  card.style.display = 'block';
+  const total = sessionItems.reduce((s,it)=>s+(it.calories||0),0);
+  document.getElementById('sessionTotal').textContent = total.toLocaleString();
+  const el = document.getElementById('sessionItems');
+  el.innerHTML = '';
+  sessionItems.forEach((it,idx) => {
+    const div = document.createElement('div');
+    div.className = 'session-item';
+    div.innerHTML = `${it._thumb ? `<img class="item-thumb" src="${it._thumb}" alt="">` : `<div class="item-thumb-ph">🍽️</div>`}
+      <div class="item-info">
+        <div class="item-name">${it.dish_name||'不明'}</div>
+        <div class="item-macros">炭 ${it.carbs??'—'}g ／ 蛋 ${it.protein??'—'}g ／ 脂 ${it.fat??'—'}g</div>
+      </div>
+      <div style="text-align:right"><div class="item-cal">${(it.calories||0).toLocaleString()}</div><div class="item-cal-unit">kcal</div></div>
+      <button class="item-del" onclick="removeItem(${idx})">✕</button>`;
+    el.appendChild(div);
+  });
+}
+
+function removeItem(idx) { sessionItems.splice(idx,1); renderSessionCard(); }
+
+// ── 保存モーダル ─────────────────────────────────────────────
+document.getElementById('saveMealBtn').onclick = () => {
+  if (!sessionItems.length) return;
+  selectedMealType = null;
+  document.querySelectorAll('.meal-type-btn').forEach(b=>b.classList.remove('selected'));
+  document.getElementById('modalConfirmBtn').disabled = true;
+  const m = currentMember();
+  const meals = m ? todayMeals(m.id) : [];
+  ['morning','lunch','dinner','snack'].forEach(type => {
+    const ex = meals.find(e=>e.meal_type===type);
+    document.getElementById(`mt-${type}`).textContent = ex ? `記録済 ${ex.total_calories}kcal` : '';
+  });
+  document.getElementById('saveModal').classList.add('show');
+};
+
+function selectMealType(type) {
+  selectedMealType = type;
+  document.querySelectorAll('.meal-type-btn').forEach(b => b.classList.toggle('selected', b.dataset.type===type));
+  document.getElementById('modalConfirmBtn').disabled = false;
+}
+
+async function confirmSave() {
+  if (!selectedMealType || !sessionItems.length) return;
+  const m = currentMember();
+  if (!m) return;
+  const total = sessionItems.reduce((s,it)=>s+(it.calories||0),0);
+  const entry = {
+    id: Date.now().toString(),
+    meal_type: selectedMealType,
+    dish_name: sessionItems.map(it=>it.dish_name).join('・'),
+    items: sessionItems.map(it=>({dish_name:it.dish_name,calories:it.calories})),
+    total_calories: total,
+    carbs: Math.round(sessionItems.reduce((s,it)=>s+(it.carbs||0),0)),
+    protein: Math.round(sessionItems.reduce((s,it)=>s+(it.protein||0),0)),
+    fat: Math.round(sessionItems.reduce((s,it)=>s+(it.fat||0),0)),
+    date: new Date().toISOString(),
+  };
+  saveHistoryLocal(m.id, entry);
+  if (isConfigured) { try { await fetch(`${WORKER_URL}/history`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({member:m.name,entry})}); } catch(_){} }
+  sessionItems = [];
+  selectedMealType = null;
+  document.getElementById('saveModal').classList.remove('show');
+  renderSessionCard();
+  updateTodaySummary();
+  showToast('✅ 保存しました！');
+}
+
+document.getElementById('saveModal').onclick = e => { if(e.target===document.getElementById('saveModal')) document.getElementById('saveModal').classList.remove('show'); };
+
+// ── グラフ ─────────────────────────────────────────────────────
+function renderGraph() {
+  const bar = document.getElementById('chartMemberBar');
+  bar.innerHTML = '';
+  const scroll = document.getElementById('chartScroll');
+
+  if (!members.length) {
+    scroll.innerHTML = '<div style="text-align:center;padding:40px;color:var(--ink3)">メンバーを登録してください</div>';
+    return;
+  }
+
+  if (!graphMemberId || !members.find(m=>m.id===graphMemberId)) graphMemberId = members[0].id;
+
+  members.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'chart-member-chip' + (m.id===graphMemberId?' active':'');
+    btn.textContent = m.name;
+    btn.onclick = () => { graphMemberId = m.id; renderGraph(); };
+    bar.appendChild(btn);
+  });
+
+  const member = members.find(m=>m.id===graphMemberId);
+  if (!member) return;
+
+  const tdee = member.tdee || null;
+  const mealTarget = tdee ? Math.round(tdee/3) : null;
+  const history = getHistory(member.id);
+  const CHART_H = 160; // バー部分の高さ(px)
+
+  // 7日分
+  const days = [];
+  for (let i=6; i>=0; i--) {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const key = dateKey(d);
+    const dayMeals = history.filter(e=>e.date&&e.date.startsWith(key));
+    const byType = {morning:0,lunch:0,dinner:0,snack:0};
+    dayMeals.forEach(e => { byType[e.meal_type] = (byType[e.meal_type]||0)+(e.total_calories||0); });
+    const total = Object.values(byType).reduce((s,v)=>s+v,0);
+    days.push({key,date:d,total,byType,meals:dayMeals});
+  }
+
+  const maxCal = Math.max(tdee?tdee*1.15:0, ...days.map(d=>d.total), 400);
+  const today = todayKey();
+
+  scroll.innerHTML = '';
+
+  // グラフカード
+  const gc = document.createElement('div');
+  gc.className = 'graph-card';
+
+  // 参照線の bottom 計算（px単位・バーの上端から）
+  // bars-rowは height:200px だが、日付ラベル24px + kcalラベル14px ≈ 38px を除いた CHART_H がバー実高
+  const refMealBottom  = mealTarget ? Math.round((mealTarget/maxCal)*CHART_H) : null;
+  const refDayBottom   = tdee       ? Math.round((tdee/maxCal)*CHART_H)       : null;
+
+  gc.innerHTML = `
+    <div class="graph-title">7日間のカロリー記録</div>
+    <div class="graph-subtitle">${tdee ? `目標: ${tdee.toLocaleString()} kcal/日  ／  1食目安: ${mealTarget.toLocaleString()} kcal` : 'プロフィールを設定すると目標が表示されます'}</div>
+    <div class="bar-chart-wrap">
+      <div class="chart-ref-lines" id="refLinesEl" style="bottom:38px;top:0"></div>
+      <div class="bars-row" id="barsRowEl"></div>
+    </div>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-dot morning"></div>朝</div>
+      <div class="legend-item"><div class="legend-dot lunch"></div>昼</div>
+      <div class="legend-item"><div class="legend-dot dinner"></div>夜</div>
+      <div class="legend-item"><div class="legend-dot snack"></div>おやつ</div>
+      ${mealTarget?'<div class="legend-item"><div class="legend-dot meal-ref" style="width:16px"></div>1食目安</div>':''}
+      ${tdee?'<div class="legend-item"><div class="legend-dot day-ref" style="width:16px"></div>1日目標</div>':''}
+    </div>`;
+  scroll.appendChild(gc);
+
+  const barsRow = gc.querySelector('#barsRowEl');
+  const refLines = gc.querySelector('#refLinesEl');
+
+  days.forEach(day => {
+    const col = document.createElement('div');
+    col.className = 'bar-col' + (day.key===today?' bar-today':'');
+    const stackH = day.total>0 ? Math.max(Math.round((day.total/maxCal)*CHART_H),3) : 0;
+    const segs = ['morning','lunch','dinner','snack']
+      .map(t=>({t,h:day.byType[t]>0?Math.max(Math.round((day.byType[t]/maxCal)*CHART_H),3):0}))
+      .filter(s=>s.h>0);
+    const d = day.date;
+    const label = day.key===today ? '今日' : `${d.getMonth()+1}/${d.getDate()}`;
+    col.innerHTML = `
+      <div class="bar-kcal">${day.total>0?day.total.toLocaleString():''}</div>
+      <div class="bar-stack" style="height:${stackH}px">${segs.map(s=>`<div class="bar-seg ${s.t}" style="height:${s.h}px"></div>`).join('')}</div>
+      <div class="bar-date">${label}</div>`;
+    barsRow.appendChild(col);
+  });
+
+  // 参照線を描画（barsRowの底辺からの offset）
+  function addRefLine(bottomPx, cls, label) {
+    if (bottomPx <= 0 || bottomPx > CHART_H) return;
+    const line = document.createElement('div');
+    line.className = `ref-line ${cls}`;
+    // refLinesの高さ = CHART_H、bottom=0 が barsRow の底（日付ラベルの上）
+    line.style.bottom = bottomPx + 'px';
+    line.innerHTML = `<div class="ref-line-dash"></div><div class="ref-line-label">${label}</div>`;
+    refLines.appendChild(line);
+  }
+
+  // refLines コンテナの高さをCHART_Hに設定
+  refLines.style.height = CHART_H + 'px';
+  refLines.style.bottom = '38px'; // 日付+kcalラベル分
+
+  if (refMealBottom) addRefLine(refMealBottom, 'meal-ref', `${mealTarget}kcal`);
+  if (refDayBottom)  addRefLine(refDayBottom,  'day-ref',  `${tdee.toLocaleString()}kcal`);
+
+  // 日別詳細
+  const tmap = {morning:'朝',lunch:'昼',dinner:'夜',snack:'おやつ'};
+  const daysWithData = days.filter(d=>d.total>0).reverse();
+  daysWithData.forEach(day => {
+    const c = document.createElement('div');
+    c.className = 'card';
+    const d = day.date;
+    const label = day.key===today ? '今日' : `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+    c.innerHTML = `
+      <div class="day-detail-header"><div class="day-detail-date">${label}</div><div class="day-detail-total">${day.total.toLocaleString()} kcal</div></div>
+      ${day.meals.map(e=>`<div class="day-detail-row">
+        <div class="detail-dot ${e.meal_type}"></div>
+        <div class="detail-dish">${tmap[e.meal_type]||''} ${e.dish_name||''}</div>
+        <div class="detail-cal">${(e.total_calories||0).toLocaleString()} kcal</div>
+      </div>`).join('')}`;
+    scroll.appendChild(c);
+  });
+
+  if (!daysWithData.length) {
+    const em = document.createElement('div');
+    em.style.cssText = 'text-align:center;padding:40px;color:var(--ink3);font-size:14px;';
+    em.textContent = 'まだ記録がありません 🍽️';
+    scroll.appendChild(em);
+  }
+}
+
+// ── プロフィール ──────────────────────────────────────────────
+function renderProfilePage() {
+  const scroll = document.getElementById('profileScroll');
+  scroll.innerHTML = '';
+  const list = document.createElement('div');
+  list.className = 'member-list';
+
+  members.forEach(m => {
+    const c = document.createElement('div');
+    c.className = 'member-card' + (m.id===currentMemberId?' current':'');
+    const stats = [m.age?m.age+'歳':'',m.height?m.height+'cm':'',m.weight?m.weight+'kg':''].filter(Boolean).join(' ／ ');
+    c.innerHTML = `
+      <div class="member-card-avatar" style="background:${avatarColor(m.id)}">${m.name[0]}</div>
+      <div style="flex:1">
+        <div class="member-card-name">${m.name}</div>
+        <div class="member-card-stats">${stats}</div>
+        ${m.tdee?`<div class="member-card-target">目標 ${m.tdee.toLocaleString()} kcal/日</div>`:''}
+      </div>
+      <div style="font-size:20px;color:var(--ink3)">›</div>`;
+    c.onclick = () => { currentMemberId=m.id; localStorage.setItem('cal_currentMember',m.id); openProfileModal(m.id); };
+    list.appendChild(c);
+  });
+
+  const add = document.createElement('button');
+  add.className = 'add-member-card';
+  add.innerHTML = '＋ メンバーを追加する';
+  add.onclick = () => openProfileModal(null);
+  list.appendChild(add);
+  scroll.appendChild(list);
+}
+
+function openProfileModal(memberId) {
+  editingMemberId = memberId;
+  const m = memberId ? members.find(x=>x.id===memberId) : null;
+  document.getElementById('profileModalTitle').textContent = m ? 'プロフィール編集' : '新しいメンバーを追加';
+  document.getElementById('pName').value = m?.name||'';
+  document.getElementById('pAge').value = m?.age||'';
+  document.getElementById('pHeight').value = m?.height||'';
+  document.getElementById('pWeight').value = m?.weight||'';
+  selectedGender = m?.gender||null;
+  selectedActivityFactor = m?.activityFactor||null;
+  document.getElementById('gMale').classList.toggle('selected', selectedGender==='male');
+  document.getElementById('gFemale').classList.toggle('selected', selectedGender==='female');
+  document.querySelectorAll('.activity-btn').forEach(b=>b.classList.toggle('selected', parseFloat(b.dataset.factor)===selectedActivityFactor));
+  calcBMR();
+  document.getElementById('profileModal').classList.add('show');
+}
+
+function closeProfileModal() { document.getElementById('profileModal').classList.remove('show'); }
+
+function selectGender(g) {
+  selectedGender = g;
+  document.getElementById('gMale').classList.toggle('selected',g==='male');
+  document.getElementById('gFemale').classList.toggle('selected',g==='female');
+  calcBMR();
+}
+
+function selectActivity(btn) {
+  selectedActivityFactor = parseFloat(btn.dataset.factor);
+  document.querySelectorAll('.activity-btn').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  calcBMR();
+}
+
+function calcBMR() {
+  const age=parseFloat(document.getElementById('pAge').value);
+  const h=parseFloat(document.getElementById('pHeight').value);
+  const w=parseFloat(document.getElementById('pWeight').value);
+  if (!age||!h||!w||!selectedGender||!selectedActivityFactor) { document.getElementById('bmrResult').style.display='none'; return; }
+  const bmr = selectedGender==='male' ? 10*w+6.25*h-5*age+5 : 10*w+6.25*h-5*age-161;
+  const tdee = Math.round(bmr*selectedActivityFactor);
+  document.getElementById('bmrNum').textContent = tdee.toLocaleString();
+  document.getElementById('bmrMeal').textContent = `1食あたりの目安：${Math.round(tdee/3).toLocaleString()} kcal`;
+  document.getElementById('bmrResult').style.display = 'block';
+}
+
+function saveProfile() {
+  const name = document.getElementById('pName').value.trim();
+  if (!name) { showToast('⚠️ 名前を入力してください'); return; }
+  const age=parseFloat(document.getElementById('pAge').value);
+  const height=parseFloat(document.getElementById('pHeight').value);
+  const weight=parseFloat(document.getElementById('pWeight').value);
+  let tdee=null;
+  if (age&&height&&weight&&selectedGender&&selectedActivityFactor) {
+    const bmr = selectedGender==='male' ? 10*weight+6.25*height-5*age+5 : 10*weight+6.25*height-5*age-161;
+    tdee = Math.round(bmr*selectedActivityFactor);
+  }
+  if (editingMemberId) {
+    const idx = members.findIndex(m=>m.id===editingMemberId);
+    if (idx!==-1) members[idx]={...members[idx],name,age,height,weight,gender:selectedGender,activityFactor:selectedActivityFactor,tdee};
+  } else {
+    const nm = {id:Date.now().toString(),name,age,height,weight,gender:selectedGender,activityFactor:selectedActivityFactor,tdee};
+    members.push(nm);
+    currentMemberId = nm.id;
+    localStorage.setItem('cal_currentMember',currentMemberId);
+  }
+  localStorage.setItem('cal_members', JSON.stringify(members));
+  closeProfileModal();
+  renderProfilePage();
+  renderScanPage();
+  showToast('✅ 保存しました！');
+}
+
+document.getElementById('profileModal').onclick = e => { if(e.target===document.getElementById('profileModal')) closeProfileModal(); };
+
+// ── トースト ─────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ── 初期化 ──────────────────────────────────────────────────
+if (!currentMemberId && members.length>0) { currentMemberId=members[0].id; localStorage.setItem('cal_currentMember',currentMemberId); }
+renderScanPage();
+</script>
+</body>
+</html>
